@@ -3328,7 +3328,7 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 			}
 			duk_pop(agent->meshCoreCtx);
 
-			if (agent->openFrameMode || agent->coreTimeout != NULL)
+			if (agent->openFrameMode && agent->coreTimeout != NULL)
 			{
 				printf("Start meshcore. Openframe mode: %d, coreTimeout: %p\n", agent->openFrameMode, agent->coreTimeout);
 				// Cancel the timeout
@@ -3409,12 +3409,18 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 						}
 					}
 
+					printf("About to compile and execute CoreModule...\n");
 					if (ILibDuktape_ScriptContainer_CompileJavaScriptEx(agent->meshCoreCtx, CoreModule + 4, CoreModuleLen - 4, "CoreModule.js", 13) != 0 ||
 						ILibDuktape_ScriptContainer_ExecuteByteCode(agent->meshCoreCtx) != 0)
 					{
+						printf("ERROR executing CoreModule: %s\n", duk_safe_to_string(agent->meshCoreCtx, -1));
 						ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic | ILibRemoteLogging_Modules_ConsolePrint,
 							ILibRemoteLogging_Flags_VerbosityLevel_1, "Error Executing MeshCore: %s", duk_safe_to_string(agent->meshCoreCtx, -1));
 						duk_pop(agent->meshCoreCtx);
+					}
+					else
+					{
+						printf(">>> CoreModule executed successfully!\n");
 					}
 					free(CoreModule);
 				}
@@ -3422,7 +3428,7 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 			else
 			{
 				// There's no timeout, probably because the core is already running
-				printf(" meshcore already running...\n");
+				printf("Meshcore already running (coreTimeout=%p)...\n", agent->coreTimeout);
 			}
 			break;
 		}
@@ -3818,7 +3824,19 @@ void MeshServer_OnResponse(ILibWebClient_StateObject WebStateObject, int Interru
 			}
 			else
 			{
-				printf("Protocol Error encountered...\n");
+				// HTTP Error - reset connection state and retry
+				printf("HTTP Error %d received, initiating reconnection...\n", header->StatusCode);
+				if (agent->controlChannelDebug != 0) {
+					ILIBLOGMESSAGEX("HTTP Error %d received, initiating reconnection...", header->StatusCode);
+				}
+				
+				// Reset connection state to allow retries
+				agent->serverConnectionState = 0;
+				agent->controlChannel = NULL;
+				
+				// Start retry mechanism
+				MeshServer_Connect(agent);
+				return;
 			}
 			break;
 	}
