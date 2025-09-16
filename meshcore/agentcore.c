@@ -2191,6 +2191,41 @@ char* MeshAgent_MakeAbsolutePathEx(char *basePath, char *localPath, int escapeBa
 	return(ILibScratchPad2);
 }
 
+// TODO: make as external cmd arg and configure from openframe agent
+// Build path to CoreModule.js for OpenFrame mode using platform-specific path separators
+// Returns: Path to CoreModule.js in the same directory as the executable
+// Note: Uses ILibScratchPad for the result
+static char* buildOpenframeCoreModulePath(const char* exePath)
+{
+	char* lastSep;
+	
+#ifdef WIN32
+	lastSep = strrchr(exePath, '\\');
+	if (lastSep != NULL)
+	{
+		snprintf(ILibScratchPad, sizeof(ILibScratchPad), "%.*s\\CoreModule.js", 
+			(int)(lastSep - exePath), exePath);
+	}
+	else
+	{
+		strcpy_s(ILibScratchPad, sizeof(ILibScratchPad), "CoreModule.js");
+	}
+#else
+	lastSep = strrchr(exePath, '/');
+	if (lastSep != NULL)
+	{
+		snprintf(ILibScratchPad, sizeof(ILibScratchPad), "%.*s/CoreModule.js", 
+			(int)(lastSep - exePath), exePath);
+	}
+	else
+	{
+		strcpy_s(ILibScratchPad, sizeof(ILibScratchPad), "CoreModule.js");
+	}
+#endif
+	
+	return ILibScratchPad;
+}
+
 #ifndef MICROSTACK_NOTLS
 int agent_GenerateCertificates(MeshAgentHostContainer *agent, char* certfile)
 {
@@ -3364,17 +3399,7 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 						{
 							printf("Use OpenFrame CoreModule from file\n");
 
-							char* lastSep;
-							char coreModulePath[4096];
-#ifdef WIN32
-							lastSep = strrchr(agent->exePath, '\\');
-							snprintf(coreModulePath, sizeof(coreModulePath), "%.*s\\CoreModule.js", 
-								(int)(lastSep - agent->exePath), agent->exePath);
-#else
-							lastSep = strrchr(agent->exePath, '/');
-							snprintf(coreModulePath, sizeof(coreModulePath), "%.*s/CoreModule.js", 
-								(int)(lastSep - agent->exePath), agent->exePath);
-#endif
+							char* coreModulePath = buildOpenframeCoreModulePath(agent->exePath);
 							printf("CoreModule path: %s\n", coreModulePath);
 							
 							FILE *file = fopen(coreModulePath, "rb");
@@ -3427,7 +3452,7 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 					}
 					else
 					{
-						printf(">>> CoreModule executed successfully!\n");
+						printf("CoreModule executed successfully!\n");
 					}
 					free(CoreModule);
 				}
