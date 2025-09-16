@@ -3328,7 +3328,7 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 			}
 			duk_pop(agent->meshCoreCtx);
 
-			if (agent->openFrameMode && agent->coreTimeout != NULL)
+			if (agent->coreTimeout != NULL)
 			{
 				printf("Start meshcore. Openframe mode: %d, coreTimeout: %p\n", agent->openFrameMode, agent->coreTimeout);
 				// Cancel the timeout
