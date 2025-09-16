@@ -3364,10 +3364,17 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 						{
 							printf("Use OpenFrame CoreModule from file\n");
 
-							char* lastSep = strrchr(agent->exePath, '/');
+							char* lastSep;
 							char coreModulePath[4096];
+#ifdef WIN32
+							lastSep = strrchr(agent->exePath, '\\');
+							snprintf(coreModulePath, sizeof(coreModulePath), "%.*s\\CoreModule.js", 
+								(int)(lastSep - agent->exePath), agent->exePath);
+#else
+							lastSep = strrchr(agent->exePath, '/');
 							snprintf(coreModulePath, sizeof(coreModulePath), "%.*s/CoreModule.js", 
 								(int)(lastSep - agent->exePath), agent->exePath);
+#endif
 							printf("CoreModule path: %s\n", coreModulePath);
 							
 							FILE *file = fopen(coreModulePath, "rb");
