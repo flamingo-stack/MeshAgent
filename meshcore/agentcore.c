@@ -3824,19 +3824,7 @@ void MeshServer_OnResponse(ILibWebClient_StateObject WebStateObject, int Interru
 			}
 			else
 			{
-				// HTTP Error - reset connection state and retry
-				printf("HTTP Error %d received, initiating reconnection...\n", header->StatusCode);
-				if (agent->controlChannelDebug != 0) {
-					ILIBLOGMESSAGEX("HTTP Error %d received, initiating reconnection...", header->StatusCode);
-				}
-				
-				// Reset connection state to allow retries
-				agent->serverConnectionState = 0;
-				agent->controlChannel = NULL;
-				
-				// Start retry mechanism
-				MeshServer_Connect(agent);
-				return;
+				printf("Protocol Error encountered...\n");
 			}
 			break;
 	}
