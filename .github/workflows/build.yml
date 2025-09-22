@@ -83,6 +83,7 @@ jobs:
 
       - name: Compile agent for ${{ matrix.go_os }}
         run: msbuild MeshAgent-2022.sln /p:Configuration=Release
+        shell: cmd
 
 #      - name: Compile agent for ${{ matrix.go_os }}
 #        run: |
