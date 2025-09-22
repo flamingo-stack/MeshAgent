@@ -72,19 +72,19 @@ jobs:
         with:
           fetch-depth: 1
 
-#      - name: Prepare Build tools
-#        uses: actions/setup-go@v5
-#        with:
-#          go-version: '1.20.13'
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+      
+      - name: Setup Visual Studio Build Tools
+        uses: ilammy/msvc-dev-cmd@v1
+      
+      - name: Build MeshAgent for ${{ matrix.os_arch }} with MSBuild
+        run: msbuild MeshAgent-2022.sln -p:Configuration=Release -p:Platform=x64
 
-
-      - name: Prepare Build tools
-        uses: microsoft/setup-msbuild@v1.1
-
-      - name: Compile agent for ${{ matrix.go_os }}
-        run: dotnet build MeshAgent-2022.sln --configuration Release
-
-##      - name: Compile agent for ${{ matrix.go_os }}
+##      - name: Prepare Build tools
+##        uses: microsoft/setup-msbuild@v1.1
+##
+##      - name: Compile agent for ${{ matrix.os }}
 ##        run: msbuild MeshAgent-2022.sln /p:Configuration=Release
 ##        shell: cmd
 
