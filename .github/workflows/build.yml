@@ -80,6 +80,7 @@ jobs:
       
       - name: Build MeshAgent for ${{ matrix.os_arch }} with MSBuild
         run: msbuild MeshAgent-2022.sln -p:Configuration=Release -p:Platform=x64
+        shell: cmd
 
 ##      - name: Prepare Build tools
 ##        uses: microsoft/setup-msbuild@v1.1
