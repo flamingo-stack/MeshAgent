@@ -1,4 +1,4 @@
-name: Tactical RMM Agent Build and Push Latest
+name: MeshAgent Build and Push Latest
 
 permissions:
   contents: write
@@ -82,8 +82,11 @@ jobs:
         uses: microsoft/setup-msbuild@v1.1
 
       - name: Compile agent for ${{ matrix.go_os }}
-        run: msbuild MeshAgent-2022.sln /p:Configuration=Release
-        shell: cmd
+        run: dotnet build MeshAgent-2022.sln --configuration Release
+
+##      - name: Compile agent for ${{ matrix.go_os }}
+##        run: msbuild MeshAgent-2022.sln /p:Configuration=Release
+##        shell: cmd
 
 #      - name: Compile agent for ${{ matrix.go_os }}
 #        run: |
