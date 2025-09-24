@@ -34,7 +34,7 @@ jobs:
     name: "Build C Client (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     if: |
-      github.event_name == 'push'
+      github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     defaults:
       run:
         shell: bash
@@ -42,30 +42,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            os_arch: amd64
-##            artifact_name: rmmagent-windows-amd64.exe
-##          - os: windows-latest
-##            os_arch: 386
-##            artifact_name: rmmagent-windows-i386.exe
-##          - os: macos-latest
-##            os_arch: arm64
-##            artifact_name: meshagent_osx-arm-64
-#          - os: macos-latest
-#            os_arch: [arm64, amd64]
-#            artifact_name: rmmagent-mac-universal
-#          - os: macos-latest
-#            go_os: darwin
-#            os_arch: arm64
-#            artifact_name: rmmagent-mac-arm64
-#          - os: macos-latest
-#            go_os: darwin
-#            os_arch: amd64
-#            artifact_name: rmmagent-mac-amd64
-#          - os: ubuntu-latest
-#            target: x86_64-unknown-linux-gnu
-#            artifact_name: openframe-oss-client-linux-x64
-         
+          - name: "Windows x64"
+            os: windows-latest
+            os_arch: x64
+            archid: 4
+            artifact_name: meshagent-windows-x64.exe
+          - name: "Windows x86"
+            os: windows-latest
+            os_arch: Win32
+            archid: 3
+            artifact_name: meshagent-windows-x86.exe
+          - name: "macOS x86-64"
+            os: macos-13
+            os_arch: x86-64
+            archid: 16
+            artifact_name: meshagent_osx-x86-64
+          - name: "macOS ARM64"
+            os: macos-latest
+            os_arch: arm64
+            archid: 29
+            artifact_name: meshagent_osx-arm-64
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -73,47 +70,63 @@ jobs:
           fetch-depth: 1
 
       - name: Setup MSBuild
+        if: runner.os == 'Windows'
         uses: microsoft/setup-msbuild@v2
       
       - name: Setup Visual Studio Build Tools
+        if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.os_arch }}      
+
+      - name: Install macOS Dependencies
+        if: runner.os == 'macOS'
+        run: brew install openssl jpeg zlib
+        shell: bash
       
-      - name: Build MeshAgent for ${{ matrix.os_arch }} with MSBuild
-        run: msbuild MeshAgent-2022.sln -p:Configuration=Release -p:Platform=x64
+      - name: Build MeshAgent for Windows ${{ matrix.os_arch }} with MSBuild
+        if: matrix.os == 'windows-latest'
+        run: msbuild MeshAgent-2022.sln -p:Configuration=Release -p:Platform="${{ matrix.os_arch }}"
         shell: cmd
 
-##      - name: Prepare Build tools
-##        uses: microsoft/setup-msbuild@v1.1
-##
-##      - name: Compile agent for ${{ matrix.os }}
-##        run: msbuild MeshAgent-2022.sln /p:Configuration=Release
-##        shell: cmd
+      - name: Build MeshAgent for macOS ${{ matrix.os_arch }}
+        if: runner.os == 'macOS'
+        run: |
+          echo "Building MeshAgent for macOS ${{ matrix.os_arch }}"
+          make macos ARCHID=${{ matrix.archid }}
+        shell: bash
 
-#      - name: Compile agent for ${{ matrix.go_os }}
-#        run: |
-#          if [[ "${{ matrix.go_os }}" == "darwin" ]]; then
-#            rm -rf ./build_target
-#            mkdir -p ./build_target
-#            architectures=($(echo '${{ toJSON(matrix.os_arch) }}' | jq -r '.[]'))
-#            for arch in "${architectures[@]}"; do
-#              echo "Building for ${{ matrix.go_os }}/${arch}"
-#              env CGO_ENABLED=0 GOOS=${{ matrix.go_os }} GOARCH=${arch} go build -ldflags "-s -w" -o "./build_target/rmmagent-mac-${arch}"
-#            done
-#            echo "Create rmmagent-mac-universal package"
-#            lipo -create ./build_target/rmmagent-mac-amd64 ./build_target/rmmagent-mac-arm64 -output "${{ matrix.artifact_name }}"
-#            lipo -info "${{ matrix.artifact_name }}"
-#            rm -rf ./build_target
-#          fi
-#          if [[ "${{ matrix.go_os }}" == "windows" ]]; then
-#            env CGO_ENABLED=0 GOOS=${{ matrix.go_os }} GOARCH=${{ matrix.os_arch }} go build -ldflags "-s -w" -o "${{ matrix.artifact_name }}"
-#          fi
+      - name: Prepare Artifacts
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p artifacts          
+          if [[ "${{ matrix.os_arch }}" == "arm64" ]]; then
+            BINARY_NAME="meshagent_osx-arm-64"
+          elif [[ "${{ matrix.os_arch }}" == "x86-64" ]]; then
+            BINARY_NAME="meshagent_osx-x86-64"
+          fi
+          cp "$BINARY_NAME" "artifacts/"
+          ls -la "artifacts/"
 
       - name: Upload client artifact
+        if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: meshagent-windows-build
+          name: ${{ matrix.artifact_name }}
           path: |
-            "**/bin/Release/*.exe"
+            artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 9
+
+      - name: Upload Windows client artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            "**/Release/*.exe"
           if-no-files-found: warn
           retention-days: 30
           compression-level: 9
