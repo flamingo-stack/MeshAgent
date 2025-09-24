@@ -42,16 +42,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: "Windows x64"
-            os: windows-latest
-            os_arch: x64
-            archid: 4
-            artifact_name: meshagent-windows-x64.exe
-          - name: "Windows x86"
-            os: windows-latest
-            os_arch: x86
-            archid: 3
-            artifact_name: meshagent-windows-x86.exe
           - name: "macOS x86-64"
             os: macos-13
             os_arch: x86-64
@@ -62,6 +52,16 @@ jobs:
             os_arch: arm64
             archid: 29
             artifact_name: meshagent_osx-arm-64
+          - name: "Windows x64"
+            os: windows-latest
+            os_arch: x64
+            archid: 4
+            artifact_name: meshagent-windows-x64.exe
+###          - name: "Windows x86"
+###            os: windows-latest
+###            os_arch: x86
+###            archid: 3
+###            artifact_name: meshagent-windows-x86.exe
 
     steps:
       - name: Checkout
