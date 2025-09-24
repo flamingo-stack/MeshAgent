@@ -108,24 +108,32 @@ jobs:
           fi
           cp "$BINARY_NAME" "artifacts/"
 
+      - name: Prepare Windows Artifacts
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          if [[ -f "Release/MeshService64.exe" ]]; then
+            cp "Release/MeshService64.exe" "artifacts/meshagent-windows-${{ matrix.os_arch }}.exe"
+            echo "Found and copied: Release/MeshService64.exe"
+          elif [[ -f "x64/Release/MeshService64.exe" ]]; then
+            cp "x64/Release/MeshService64.exe" "artifacts/meshagent-windows-${{ matrix.os_arch }}.exe"
+            echo "Found and copied: x64/Release/MeshService64.exe"
+          else
+            echo "MeshService64.exe not found, checking available files:"
+            find . -name "*.exe" -type f | head -10
+            exit 1
+          fi
+          
+          # List what we're uploading
+          ls -la artifacts/
+
       - name: Upload client artifact
-        if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: |
             artifacts/
-          if-no-files-found: warn
-          retention-days: 30
-          compression-level: 9
-
-      - name: Upload Windows client artifact
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: |
-            "**/Release/*.exe"
           if-no-files-found: warn
           retention-days: 30
           compression-level: 9
