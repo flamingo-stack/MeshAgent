@@ -86,7 +86,7 @@ jobs:
       
       - name: Build MeshAgent for Windows ${{ matrix.os_arch }} with MSBuild
         if: matrix.os == 'windows-latest'
-        run: msbuild MeshAgent-2022.sln -p:Configuration=Release -p:Platform="${{ matrix.os_arch }}"
+        run: msbuild MeshAgent-2022.sln -p:Configuration=Release -p:Platform="${{ matrix.os_arch }}" -p:WindowsTargetPlatformVersion=10.0.26100.0
         shell: cmd
 
       - name: Build MeshAgent for macOS ${{ matrix.os_arch }}
@@ -107,7 +107,6 @@ jobs:
             BINARY_NAME="meshagent_osx-x86-64"
           fi
           cp "$BINARY_NAME" "artifacts/"
-          ls -la "artifacts/"
 
       - name: Upload client artifact
         if: runner.os == 'macOS'
