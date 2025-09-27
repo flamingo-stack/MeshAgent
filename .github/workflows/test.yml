@@ -148,7 +148,7 @@ jobs:
     needs: [build_client]
     runs-on: macos-latest
     if: |
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      ((github.event_name == 'pull_request' && !github.event.pull_request.draft) || github.event_name == 'workflow_dispatch') &&
       !failure() && !cancelled()
     
     steps:
@@ -195,12 +195,3 @@ jobs:
           apple_team_id: ${{ secrets.APPLE_TEAM_ID }}
           binary_name: meshagent-osx-universal
           app_name: MeshAgent
-
-
-      - name: Upload Universal Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: meshagent-macos-universal
-          path: artifacts/
-          retention-days: 30
-          compression-level: 9
