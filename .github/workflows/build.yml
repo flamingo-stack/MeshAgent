@@ -169,8 +169,8 @@ jobs:
       - name: Create Universal Binary
         run: |
           echo "Creating universal macOS binary with lipo..."
-          X64_BINARY="x64-artifacts/meshagent_osx-x86-64"
-          ARM64_BINARY="arm64-artifacts/meshagent_osx-arm-64"
+          X64_BINARY="x64-artifacts/${{ env.BINARY_NAME }}"
+          ARM64_BINARY="arm64-artifacts/${{ env.BINARY_NAME }}"
           
           mkdir -p artifacts
           lipo -create "$X64_BINARY" "$ARM64_BINARY" -output ./artifacts/${{ env.BINARY_NAME }}
