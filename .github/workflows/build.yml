@@ -89,14 +89,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           echo "Embedding JavaScript modules into C code..."
-          powershell -Command "& { 
-            try { 
-              $env:NODE_PATH = './modules'; 
-              node -e \"try { require('./modules/code-utils.js').shrink(); console.log('Modules embedded successfully'); } catch(e) { console.log('Error embedding modules: ' + e.toString()); process.exit(1); }\"
-            } catch { 
-              Write-Host 'Node.js embedding failed, will rely on filesystem modules'; 
-            } 
-          }"
+          node -e "try { require('./modules/code-utils.js').shrink(); console.log('Modules embedded successfully'); } catch(e) { console.log('Error embedding modules: ' + e.toString()); }"
         shell: cmd
       
       - name: Build MeshAgent for Windows ${{ matrix.os_arch }} with MSBuild
