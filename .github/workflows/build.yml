@@ -89,7 +89,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           echo "Embedding JavaScript modules into C code..."
-          node -e "try { require('./modules/code-utils.js').shrink(); console.log('Modules embedded successfully'); } catch(e) { console.log('Error embedding modules: ' + e.toString()); }"
+          node -e "try { require('./modules/code-utils.js').shrink({expandedPath: 'modules', modulesPath: 'modules'}); console.log('Modules embedded successfully'); } catch(e) { console.log('Error embedding modules: ' + e.toString()); process.exit(1); }"
         shell: cmd
       
       - name: Build MeshAgent for Windows ${{ matrix.os_arch }} with MSBuild
