@@ -10,7 +10,7 @@ permissions:
 
 on:
   push:
-    branches: [master, feature/test-win]
+    branches: [master,feature/test-win]
     paths-ignore:
       - "**/*.md"
   workflow_dispatch:
