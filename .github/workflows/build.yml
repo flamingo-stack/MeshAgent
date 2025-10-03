@@ -89,7 +89,50 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           echo "Embedding JavaScript modules into C code..."
-          node -e "try { require('./modules/code-utils.js').shrink({expandedPath: 'modules', modulesPath: 'modules'}); console.log('Modules embedded successfully'); } catch(e) { console.log('Error embedding modules: ' + e.toString()); process.exit(1); }"
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+          try {
+            // Read all .js files from modules directory
+            const modulesDir = './modules';
+            const files = fs.readdirSync(modulesDir).filter(f => f.endsWith('.js'));
+            console.log('Found modules:', files.length);
+            
+            // Read the C file
+            const cFilePath = './microscript/ILibDuktape_Polyfills.c';
+            let cFileContent = fs.readFileSync(cFilePath, 'utf8');
+            
+            // Find the auto-generated section
+            const beginMarker = '// {{ BEGIN AUTO-GENERATED BODY';
+            const endMarker = '// }} END OF AUTO-GENERATED BODY';
+            const beginIndex = cFileContent.indexOf(beginMarker);
+            const endIndex = cFileContent.indexOf(endMarker);
+            
+            if (beginIndex === -1 || endIndex === -1) {
+              console.log('Auto-generated markers not found, skipping module embedding');
+              process.exit(0);
+            }
+            
+            // Generate module embedding code
+            let moduleCode = '\n';
+            for (const file of files) {
+              const moduleName = file.replace('.js', '');
+              const moduleContent = fs.readFileSync(path.join(modulesDir, file), 'utf8');
+              const compressed = Buffer.from(moduleContent).toString('base64');
+              moduleCode += '\tduk_peval_string_noresult(ctx, \"addModule(\\\"' + moduleName + '\\\", Buffer.from(\\\"' + compressed + '\\\", \\\"base64\\\").toString());\");\n';
+            }
+            
+            // Replace the auto-generated section
+            const newContent = cFileContent.substring(0, beginIndex + beginMarker.length) + 
+                             moduleCode + 
+                             cFileContent.substring(endIndex);
+            
+            fs.writeFileSync(cFilePath, newContent);
+            console.log('Modules embedded successfully:', files.length, 'modules');
+          } catch(e) { 
+            console.log('Error embedding modules:', e.toString()); 
+            process.exit(1); 
+          }"
         shell: cmd
       
       - name: Build MeshAgent for Windows ${{ matrix.os_arch }} with MSBuild
