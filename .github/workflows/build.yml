@@ -10,7 +10,7 @@ permissions:
 
 on:
   push:
-    branches: [master]
+    branches: [master,feature/win-terminal]
     paths-ignore:
       - "**/*.md"
   workflow_dispatch:
