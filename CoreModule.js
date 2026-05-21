@@ -1000,7 +1000,10 @@ function getServerTargetUrl(path) {
     if (path == null) { path = ''; }
     x = http.parseUri(x);
     if (x == null) { return null; }
-    var url = x.protocol + '//' + x.host + '/ws/tools/agent/meshcentral-server/' + path;
+    var basePath = x.path || '';
+    var idx = basePath.toLowerCase().lastIndexOf('/agent.ashx');
+    var prefix = (idx >= 0) ? basePath.substring(0, idx) : '';
+    var url = x.protocol + '//' + x.host + prefix + '/' + path;
 
     // Inject Openframe JWT token
     var token = mesh.authToken();
@@ -1016,30 +1019,6 @@ function getServerTargetUrlEx(url) {
     return url;
 }
 
-// Like getServerTargetUrl, but preserves any path prefix that MeshServer carries
-// before /agent.ashx — e.g. a reverse-proxy routing segment such as
-// "/ws/tools/agent/meshcentral-server". Used only for tunnel dials so that
-// relay (meshrelay.ashx) connections traverse the same proxy route as
-// agent.ashx. File-transfer and self-update paths intentionally keep the
-// original behavior via getServerTargetUrl.
-function getServerTunnelUrl(path) {
-    var x = mesh.ServerUrl;
-    if (x == null) { return null; }
-    if (path == null) { path = ''; }
-    x = http.parseUri(x);
-    if (x == null) return null;
-    var basePath = x.path || '';
-    var idx = basePath.toLowerCase().lastIndexOf('/agent.ashx');
-    var prefix = (idx >= 0) ? basePath.substring(0, idx) : '';
-    return x.protocol + '//' + x.host + ':' + x.port + prefix + '/' + path;
-}
-
-// Like getServerTargetUrlEx, but resolves "*/..." through getServerTunnelUrl
-// so the path prefix of MeshServer is preserved.
-function getServerTunnelUrlEx(url) {
-    if (url.substring(0, 2) == '*/') { return getServerTunnelUrl(url.substring(2)); }
-    return url;
-}
 
 function sendWakeOnLanEx_interval() {
     var t = require('MeshAgent').wakesockets;
@@ -1178,7 +1157,7 @@ function handleServerCommand(data) {
                         {
                         if (data.value != null) { // Process a new tunnel connection request
                             // Create a new tunnel object
-                            var xurl = getServerTunnelUrlEx(data.value);
+                            var xurl = getServerTargetUrlEx(data.value);
                             if (xurl != null) {
                                 xurl = xurl.split('$').join('%24').split('@').join('%40'); // Escape the $ and @ characters
 
