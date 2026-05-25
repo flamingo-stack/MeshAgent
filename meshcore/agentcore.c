@@ -3379,8 +3379,6 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 						X509_pubkey_digest(serverCert, EVP_sha256(), (unsigned char*)ILibScratchPad, (unsigned int*)&hashlen); // OpenSSL 1.1, SHA256 (For older .mshx policy file)
 						if (memcmp(ILibScratchPad, agent->serverHash, UTIL_SHA256_HASHSIZE) != 0)
 						{
-							printf("Server certificate mismatch\r\n");
-							printf("Handshake FAILED: Server certificate mismatch - server identity verification failed\n");
 							char hexBuf[UTIL_SHA384_HASHSIZE * 2 + 1];
 							util_tohex((char*)agent->serverHash, UTIL_SHA384_HASHSIZE, hexBuf);
 							printf("  Expected ServerID (stored): %s\n", hexBuf);
@@ -3396,7 +3394,19 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 							if (subjStr != NULL) { printf("  Cert subject: %s\n", subjStr); OPENSSL_free(subjStr); }
 							if (issuerStr != NULL) { printf("  Cert issuer: %s\n", issuerStr); OPENSSL_free(issuerStr); }
 							if (agent->serveruri != NULL) { printf("  Server URL: %s\n", agent->serveruri); }
-							break;
+
+							if (agent->openFrameMode)
+							{
+								// OpenFrame mode: allow cert rotation if server proves identity via signature
+								printf("Server certificate changed (OpenFrame mode) - verifying server signature before accepting\n");
+								// Fall through to signature verification below
+							}
+							else
+							{
+								printf("Server certificate mismatch\r\n");
+								printf("Handshake FAILED: Server certificate mismatch - server identity verification failed\n");
+								break;
+							}
 						}
 					}
 
@@ -3419,6 +3429,24 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 
 						// Store the server's TLS cert hash so in the future, we can skip server auth.
 						ILibSimpleDataStore_PutEx(agent->masterDb, "ServerTlsCertHash", 17, ILibScratchPad2, UTIL_SHA384_HASHSIZE);
+
+						// OpenFrame: auto-update ServerID when server cert rotated and signature verified
+						if (agent->openFrameMode)
+						{
+							int newHashLen = UTIL_SHA384_HASHSIZE;
+							unsigned char newPubKeyHash[UTIL_SHA384_HASHSIZE];
+							X509_pubkey_digest(serverCert, EVP_sha384(), newPubKeyHash, (unsigned int*)&newHashLen);
+							if (memcmp(newPubKeyHash, agent->serverHash, UTIL_SHA384_HASHSIZE) != 0)
+							{
+								// Server identity cert changed — update stored ServerID
+								memcpy(agent->serverHash, newPubKeyHash, UTIL_SHA384_HASHSIZE);
+								char newServerIdHex[UTIL_SHA384_HASHSIZE * 2 + 1];
+								util_tohex((char*)newPubKeyHash, UTIL_SHA384_HASHSIZE, newServerIdHex);
+								newServerIdHex[UTIL_SHA384_HASHSIZE * 2] = 0;
+								ILibSimpleDataStore_PutEx(agent->masterDb, "ServerID", 8, newServerIdHex, UTIL_SHA384_HASHSIZE * 2);
+								printf("OpenFrame: ServerID auto-updated after verified cert rotation\n");
+							}
+						}
 
 							// Send our agent information to the server
 						MeshServer_SendAgentInfo(agent, WebStateObject);
