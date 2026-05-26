@@ -3379,6 +3379,7 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 						X509_pubkey_digest(serverCert, EVP_sha256(), (unsigned char*)ILibScratchPad, (unsigned int*)&hashlen); // OpenSSL 1.1, SHA256 (For older .mshx policy file)
 						if (memcmp(ILibScratchPad, agent->serverHash, UTIL_SHA256_HASHSIZE) != 0)
 						{
+							char hexBuf[UTIL_SHA384_HASHSIZE * 2 + 1];
 							util_tohex((char*)agent->serverHash, UTIL_SHA384_HASHSIZE, hexBuf);
 							printf("  Expected ServerID (stored): %s\n", hexBuf);
 							X509_pubkey_digest(serverCert, EVP_sha384(), (unsigned char*)ILibScratchPad, (unsigned int*)&hashlen);
