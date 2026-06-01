@@ -438,6 +438,7 @@ int MeshAgent_GetSystemProxy(MeshAgentHostContainer *agent, char *inBuffer, size
 		}
 	}
 	duk_pop(agent->meshCoreCtx);															// ...
+	duk_gc(agent->meshCoreCtx, 0);
 	return((int)bufferLen);
 }
 #ifdef _POSIX
