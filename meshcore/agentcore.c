@@ -4339,6 +4339,7 @@ void MeshServer_ConnectEx_NetworkError(void *j)
 	MeshAgentHostContainer *agent = (MeshAgentHostContainer*)((void**)j)[0];
 	void *request = ((void**)j)[1];
 	ILibMemory_Free(j);
+	agent->controlChannelRequest = NULL;
 
 	if (agent->controlChannelDebug != 0) { printf("Network Timeout Occurred...\n"); }
 	printf("Connection FAILED: Network timeout - server unreachable or gateway blocking\n");
