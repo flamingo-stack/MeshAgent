@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// CI control test: no-op comment to verify the Windows build failure is environmental (runner image), not code.
+
 #ifdef WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
