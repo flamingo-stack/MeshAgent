@@ -4305,10 +4305,12 @@ void MeshServer_OnResponse(ILibWebClient_StateObject WebStateObject, int Interru
 		ILibRemoteLogging_printf(ILibChainGetLogger(ILibWebClient_GetChainFromWebStateObject(WebStateObject)), ILibRemoteLogging_Modules_Agent_GuardPost, ILibRemoteLogging_Flags_VerbosityLevel_1, "Agent Host Container: Mesh Server Connection Error, trying again later.");
 
 		long long elapsedMs = ILibGetUptime() - agent->controlChannelDialTick;
+		// tls is only meaningful for wss; the ConnectSink flag tracks plain TCP connect on ws.
+		const char *tlsState = (strncmp("wss:", agent->serveruri, 4) != 0) ? "n/a" : (agent->controlChannelTlsUp != 0 ? "up" : "down");
 		printf("Connection FAILED: No HTTP response (fd=%d, status=%s, authState=%d, connState=%d, tls=%s, elapsedMs=%lld, attempt=%s)\n",
 			ILibWebClient_GetDescriptorValue_FromStateObject(WebStateObject),
 			recvStatusStr, agent->serverAuthState, agent->serverConnectionState,
-			(agent->controlChannelTlsUp != 0 ? "up" : "down"), elapsedMs, agent->connectAttemptId);
+			tlsState, elapsedMs, agent->connectAttemptId);
 
 		agent->autoproxy_status = 0;
 
@@ -4346,8 +4348,10 @@ void MeshServer_ConnectEx_NetworkError(void *j)
 
 	if (agent->controlChannelDebug != 0) { printf("Network Timeout Occurred...\n"); }
 	long long elapsedMs = ILibGetUptime() - agent->controlChannelDialTick;
+	// tls is only meaningful for wss; the ConnectSink flag tracks plain TCP connect on ws.
+	const char *tlsState = (strncmp("wss:", agent->serveruri, 4) != 0) ? "n/a" : (agent->controlChannelTlsUp != 0 ? "up" : "down");
 	printf("Connection FAILED: Network timeout - server unreachable or gateway blocking (tls=%s, elapsedMs=%lld, attempt=%s)\n",
-		(agent->controlChannelTlsUp != 0 ? "up" : "down"), elapsedMs, agent->connectAttemptId);
+		tlsState, elapsedMs, agent->connectAttemptId);
 	agent->serverConnectionState = 0;
 
 	ILibWebClient_CancelRequest(request);
@@ -4397,7 +4401,7 @@ duk_ret_t MeshServer_ConnectEx_AutoProxy(duk_context *ctx)
 
 void MeshServer_ControlChannel_ConnectSink(ILibWebClient_RequestToken sender)
 {
-	// Fires after TCP connect + TLS handshake, before the HTTP upgrade is sent.
+	// Fires after TCP connect (and TLS handshake for wss), before the HTTP upgrade is sent.
 	void **uo = ILibWebClient_RequestToken_GetUserObjects(sender);
 	MeshAgentHostContainer *agent = (uo != NULL) ? (MeshAgentHostContainer*)uo[0] : NULL;
 	if (agent != NULL) { agent->controlChannelTlsUp = 1; }
