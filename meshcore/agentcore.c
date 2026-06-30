@@ -4743,12 +4743,28 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 		// (and IPv4 vs IPv6) or through a proxy (and which one). That distinguishes a dead/stale cached proxy, an
 		// unreachable IPv6 address, and a stale cached server IP - none of which is visible in any server-side log,
 		// because these attempts die before MeshCentral/the gateway ever accept the upgrade.
+		// Redact any user:pass@ credentials from the proxy URI before logging - keep scheme://host:port,
+		// which is all the diagnostic needs (identify a dead/stale proxy) without leaking proxy credentials.
+		char proxyredacted[1024];
+		const char *proxylog = "DIRECT";
+		if (useproxy != 0)
+		{
+			char *afterscheme = strstr(webproxy, "://");
+			afterscheme = (afterscheme != NULL) ? afterscheme + 3 : webproxy;
+			char *at = strstr(afterscheme, "@");
+			if (at != NULL)
+			{
+				snprintf(proxyredacted, sizeof(proxyredacted), "%.*s***@%s", (int)(afterscheme - webproxy), webproxy, at + 1);
+				proxylog = proxyredacted;
+			}
+			else { proxylog = webproxy; }
+		}
 		printf("Connection: dialing uri=%s host=%s port=%u family=%s ip=%s useproxy=%d proxy=%s\n",
 			agent->serveruri, host, port,
 			(meshServer.sin6_family == AF_INET6 ? "IPv6" : (meshServer.sin6_family == AF_INET ? "IPv4" : "UNSPEC")),
 			(useproxy == 0 ? agent->serverip : "(via-proxy)"),
 			(int)useproxy,
-			(useproxy != 0 ? webproxy : "DIRECT"));
+			proxylog);
 
 		ILibWebClient_AddWebSocketRequestHeaders(req, 65535, MeshServer_OnSendOK);
 
