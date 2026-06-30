@@ -4410,7 +4410,7 @@ void MeshServer_ControlChannel_ConnectSink(ILibWebClient_RequestToken sender)
 	// Fires after TCP connect (and TLS handshake for wss), before the HTTP upgrade is sent.
 	void **uo = ILibWebClient_RequestToken_GetUserObjects(sender);
 	MeshAgentHostContainer *agent = (uo != NULL) ? (MeshAgentHostContainer*)uo[0] : NULL;
-	if (agent != NULL) { agent->controlChannelTlsUp = 1; }
+	if (agent != NULL && strncmp("wss:", agent->serveruri, 4) == 0) { agent->controlChannelTlsUp = 1; }
 }
 
 void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
