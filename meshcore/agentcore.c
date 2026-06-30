@@ -4304,13 +4304,16 @@ void MeshServer_OnResponse(ILibWebClient_StateObject WebStateObject, int Interru
 		}
 		ILibRemoteLogging_printf(ILibChainGetLogger(ILibWebClient_GetChainFromWebStateObject(WebStateObject)), ILibRemoteLogging_Modules_Agent_GuardPost, ILibRemoteLogging_Flags_VerbosityLevel_1, "Agent Host Container: Mesh Server Connection Error, trying again later.");
 
-		long long elapsedMs = ILibGetUptime() - agent->controlChannelDialTick;
-		// tls is only meaningful for wss; the ConnectSink flag tracks plain TCP connect on ws.
-		const char *tlsState = (strncmp("wss:", agent->serveruri, 4) != 0) ? "n/a" : (agent->controlChannelTlsUp != 0 ? "up" : "down");
-		printf("Connection FAILED: No HTTP response (fd=%d, status=%s, authState=%d, connState=%d, tls=%s, elapsedMs=%lld, attempt=%s)\n",
-			ILibWebClient_GetDescriptorValue_FromStateObject(WebStateObject),
-			recvStatusStr, agent->serverAuthState, agent->serverConnectionState,
-			tlsState, elapsedMs, agent->connectAttemptId);
+		if (agent->controlChannelLogThisAttempt != 0)
+		{
+			long long elapsedMs = ILibGetUptime() - agent->controlChannelDialTick;
+			// tls is only meaningful for wss; the ConnectSink flag tracks plain TCP connect on ws.
+			const char *tlsState = (strncmp("wss:", agent->serveruri, 4) != 0) ? "n/a" : (agent->controlChannelTlsUp != 0 ? "up" : "down");
+			printf("Connection FAILED: No HTTP response (fd=%d, status=%s, authState=%d, connState=%d, tls=%s, elapsedMs=%lld, attempt=%s)\n",
+				ILibWebClient_GetDescriptorValue_FromStateObject(WebStateObject),
+				recvStatusStr, agent->serverAuthState, agent->serverConnectionState,
+				tlsState, elapsedMs, agent->connectAttemptId);
+		}
 
 		agent->autoproxy_status = 0;
 
@@ -4347,11 +4350,14 @@ void MeshServer_ConnectEx_NetworkError(void *j)
 	agent->controlChannelRequest = NULL;
 
 	if (agent->controlChannelDebug != 0) { printf("Network Timeout Occurred...\n"); }
-	long long elapsedMs = ILibGetUptime() - agent->controlChannelDialTick;
-	// tls is only meaningful for wss; the ConnectSink flag tracks plain TCP connect on ws.
-	const char *tlsState = (strncmp("wss:", agent->serveruri, 4) != 0) ? "n/a" : (agent->controlChannelTlsUp != 0 ? "up" : "down");
-	printf("Connection FAILED: Network timeout - server unreachable or gateway blocking (tls=%s, elapsedMs=%lld, attempt=%s)\n",
-		tlsState, elapsedMs, agent->connectAttemptId);
+	if (agent->controlChannelLogThisAttempt != 0)
+	{
+		long long elapsedMs = ILibGetUptime() - agent->controlChannelDialTick;
+		// tls is only meaningful for wss; the ConnectSink flag tracks plain TCP connect on ws.
+		const char *tlsState = (strncmp("wss:", agent->serveruri, 4) != 0) ? "n/a" : (agent->controlChannelTlsUp != 0 ? "up" : "down");
+		printf("Connection FAILED: Network timeout - server unreachable or gateway blocking (tls=%s, elapsedMs=%lld, attempt=%s)\n",
+			tlsState, elapsedMs, agent->connectAttemptId);
+	}
 	agent->serverConnectionState = 0;
 
 	ILibWebClient_CancelRequest(request);
@@ -4778,12 +4784,23 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 			}
 			else { proxylog = webproxy; }
 		}
-		printf("Connection: dialing uri=%s host=%s port=%u family=%s ip=%s useproxy=%d proxy=%s attempt=%s\n",
-			agent->serveruri, host, port,
-			(meshServer.sin6_family == AF_INET6 ? "IPv6" : (meshServer.sin6_family == AF_INET ? "IPv4" : "UNSPEC")),
-			(useproxy == 0 ? agent->serverip : "(via-proxy)"),
-			(int)useproxy,
-			proxylog, agent->connectAttemptId);
+		// Throttle repeated identical attempts: log the dial/failure pair only on target change or once per 60s, counting the rest.
+		char dialSig[160];
+		snprintf(dialSig, sizeof(dialSig), "%s|%s|%d", agent->serveruri, (useproxy == 0 ? agent->serverip : "proxy"), (int)useproxy);
+		agent->controlChannelLogThisAttempt = (agent->controlChannelLastLogTick == 0 || strcmp(dialSig, agent->controlChannelDialSig) != 0 || (agent->controlChannelDialTick - agent->controlChannelLastLogTick) >= 60000) ? 1 : 0;
+		if (agent->controlChannelLogThisAttempt != 0)
+		{
+			agent->controlChannelLastLogTick = agent->controlChannelDialTick;
+			strcpy_s(agent->controlChannelDialSig, sizeof(agent->controlChannelDialSig), dialSig);
+			printf("Connection: dialing uri=%s host=%s port=%u family=%s ip=%s useproxy=%d proxy=%s attempt=%s suppressed=%u\n",
+				agent->serveruri, host, port,
+				(meshServer.sin6_family == AF_INET6 ? "IPv6" : (meshServer.sin6_family == AF_INET ? "IPv4" : "UNSPEC")),
+				(useproxy == 0 ? agent->serverip : "(via-proxy)"),
+				(int)useproxy,
+				proxylog, agent->connectAttemptId, agent->controlChannelSuppressed);
+			agent->controlChannelSuppressed = 0;
+		}
+		else { agent->controlChannelSuppressed++; }
 
 		ILibWebClient_AddWebSocketRequestHeaders(req, 65535, MeshServer_OnSendOK);
 

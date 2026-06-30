@@ -198,6 +198,10 @@ typedef struct MeshAgentHostContainer
 	int controlChannelTlsUp;
 	unsigned int connectAttemptSeq;
 	char connectAttemptId[24];
+	char controlChannelDialSig[160];
+	long long controlChannelLastLogTick;
+	unsigned int controlChannelSuppressed;
+	int controlChannelLogThisAttempt;
 
 #ifdef WIN32
 	void *shCore;
