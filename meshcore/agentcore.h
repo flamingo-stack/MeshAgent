@@ -194,6 +194,10 @@ typedef struct MeshAgentHostContainer
 	struct sockaddr_in6* proxyServer;
 	int proxyFailed;
 	void *controlChannelRequest;
+	long long controlChannelDialTick;
+	int controlChannelTlsUp;
+	unsigned int connectAttemptSeq;
+	char connectAttemptId[24];
 
 #ifdef WIN32
 	void *shCore;
