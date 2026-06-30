@@ -55,9 +55,7 @@ char* extract_token(const char* secret, const char* token_path) {
     char* decrypted_token = decrypt_aes_gcm((const unsigned char*)encrypted_data, ciphertext_len, (const unsigned char*)secret, &plaintext_len);
     free(encrypted_data);
 
-    // Diag (hotfix/agent-connect-target-diag): log every JWT we read+decrypt from disk, with a UTC timestamp,
-    // so token reads can be correlated with connect attempts and the token's iat/exp decoded to see whether the
-    // agent is presenting a stale / near-expired token (the gateway force-closes sessions at JWT expiry).
+    // Diag: log every JWT read+decrypted from disk with a UTC timestamp, to correlate token reads with connects and check iat/exp.
     if (decrypted_token != NULL) {
         time_t now = time(NULL);
         struct tm tmv;

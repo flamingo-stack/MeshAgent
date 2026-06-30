@@ -4737,14 +4737,8 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 	{
 		if (useproxy == 0) { strcpy_s(agent->serverip, sizeof(agent->serverip), ILibRemoteLogging_ConvertAddress((struct sockaddr*)&meshServer)); }
 
-		// Diag (hotfix/agent-connect-target-diag): record exactly where this control-channel attempt is being dialed,
-		// BEFORE the request goes out. On the subsequent "No HTTP response"/"Network timeout" failure, this preceding
-		// line is the only thing that tells us what the failed attempt actually targeted: DIRECT to a resolved IP
-		// (and IPv4 vs IPv6) or through a proxy (and which one). That distinguishes a dead/stale cached proxy, an
-		// unreachable IPv6 address, and a stale cached server IP - none of which is visible in any server-side log,
-		// because these attempts die before MeshCentral/the gateway ever accept the upgrade.
-		// Redact any user:pass@ credentials from the proxy URI before logging - keep scheme://host:port,
-		// which is all the diagnostic needs (identify a dead/stale proxy) without leaking proxy credentials.
+		// Diag: log where each control-channel attempt dials (IP/family/proxy) so a failed attempt is self-describing; these die before any server-side log.
+		// Redact user:pass@ credentials from the proxy URI before logging (keep scheme://host:port).
 		char proxyredacted[1024];
 		const char *proxylog = "DIRECT";
 		if (useproxy != 0)
