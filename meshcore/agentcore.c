@@ -4737,6 +4737,19 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 	{
 		if (useproxy == 0) { strcpy_s(agent->serverip, sizeof(agent->serverip), ILibRemoteLogging_ConvertAddress((struct sockaddr*)&meshServer)); }
 
+		// Diag (hotfix/agent-connect-target-diag): record exactly where this control-channel attempt is being dialed,
+		// BEFORE the request goes out. On the subsequent "No HTTP response"/"Network timeout" failure, this preceding
+		// line is the only thing that tells us what the failed attempt actually targeted: DIRECT to a resolved IP
+		// (and IPv4 vs IPv6) or through a proxy (and which one). That distinguishes a dead/stale cached proxy, an
+		// unreachable IPv6 address, and a stale cached server IP - none of which is visible in any server-side log,
+		// because these attempts die before MeshCentral/the gateway ever accept the upgrade.
+		printf("Connection: dialing uri=%s host=%s port=%u family=%s ip=%s useproxy=%d proxy=%s\n",
+			agent->serveruri, host, port,
+			(meshServer.sin6_family == AF_INET6 ? "IPv6" : (meshServer.sin6_family == AF_INET ? "IPv4" : "UNSPEC")),
+			(useproxy == 0 ? agent->serverip : "(via-proxy)"),
+			(int)useproxy,
+			(useproxy != 0 ? webproxy : "DIRECT"));
+
 		ILibWebClient_AddWebSocketRequestHeaders(req, 65535, MeshServer_OnSendOK);
 
 		void **tmp = ILibMemory_SmartAllocate(2 * sizeof(void*));
