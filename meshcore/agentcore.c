@@ -4628,7 +4628,20 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 			{
 				meshServer.sin6_family = AF_UNSPEC;
 				ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Agent_GuardPost, ILibRemoteLogging_Flags_VerbosityLevel_1, "agentcore: Could not resolve: %s", ILibScratchPad);
-				printf("agentcore: Could not resolve: %s\n", host);
+				// The dial-path throttle below is skipped when resolution fails, so throttle this retry spam here on the same 10-min gate
+				// (using an "UNRESOLVED" signature so a resolved<->unresolved flap still logs immediately) and keep the flag fresh for the downstream AutoRetry log.
+				{
+					long long nowTick = ILibGetUptime();
+					agent->controlChannelLogThisAttempt = (agent->controlChannelLastLogTick == 0 || strcmp("UNRESOLVED", agent->controlChannelDialSig) != 0 || (nowTick - agent->controlChannelLastLogTick) >= CONTROL_CHANNEL_LOG_THROTTLE_MS) ? 1 : 0;
+					if (agent->controlChannelLogThisAttempt != 0)
+					{
+						agent->controlChannelLastLogTick = nowTick;
+						strcpy_s(agent->controlChannelDialSig, sizeof(agent->controlChannelDialSig), "UNRESOLVED");
+						printf("agentcore: Could not resolve (latest attempt): %s suppressed_since_last=%u\n", host, agent->controlChannelSuppressed);
+						agent->controlChannelSuppressed = 0;
+					}
+					else { agent->controlChannelSuppressed++; }
+				}
 			}
 		}
 		else
