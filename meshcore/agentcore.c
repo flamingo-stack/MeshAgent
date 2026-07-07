@@ -4209,12 +4209,18 @@ void MeshServer_OnResponse(ILibWebClient_StateObject WebStateObject, int Interru
 			break;
 		}
 		case ILibWebClient_ReceiveStatus_Complete: // Disconnection
-			printf("Control channel disconnected [fd=%d, authState=%d]\n",
-				ILibWebClient_GetDescriptorValue_FromStateObject(WebStateObject), agent->serverAuthState);
-			if (agent->serverAuthState != 3) {
-				printf("Connection LOST: Disconnected before full authentication (fd=%d, authState=%d) - possible gateway/firewall issue\n",
+			// Throttle the offline-retry-loop spam: gate the per-cycle disconnect logs on the same flag as the dial/FAILED lines.
+			if (agent->controlChannelLogThisAttempt != 0) {
+				printf("Control channel disconnected [fd=%d, authState=%d]\n",
 					ILibWebClient_GetDescriptorValue_FromStateObject(WebStateObject), agent->serverAuthState);
+			}
+			if (agent->serverAuthState != 3) {
+				if (agent->controlChannelLogThisAttempt != 0) {
+					printf("Connection LOST: Disconnected before full authentication (fd=%d, authState=%d) - possible gateway/firewall issue\n",
+						ILibWebClient_GetDescriptorValue_FromStateObject(WebStateObject), agent->serverAuthState);
+				}
 			} else {
+				// Post-auth drop is a rare, meaningful state change (a healthy session closing) - always log it.
 				printf("Connection LOST: Disconnected after authentication (fd=%d) - server closed connection\n",
 					ILibWebClient_GetDescriptorValue_FromStateObject(WebStateObject));
 			}
@@ -5000,7 +5006,8 @@ void MeshServer_Connect(MeshAgentHostContainer *agent)
 		{
 			delay = agent->retryTime + (timeout % agent->retryTime);		// Random value between current value and double the current value
 		}
-		printf("AutoRetry Connect in %d milliseconds\n", delay);
+		// Throttle the offline-retry-loop spam: only log the retry schedule on cycles the throttle decided to log.
+		if (agent->controlChannelLogThisAttempt != 0) { printf("AutoRetry Connect in %d milliseconds\n", delay); }
 		if (agent->timerLogging != 0) { agent->retryTimerSet = 1; }
 		ILibLifeTime_AddEx(ILibGetBaseTimer(agent->chain), agent, delay, (ILibLifeTime_OnCallback)MeshServer_ConnectEx, NULL);
 		agent->retryTime = delay;
