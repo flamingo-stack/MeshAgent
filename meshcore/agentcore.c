@@ -4228,9 +4228,9 @@ void MeshServer_OnResponse(ILibWebClient_StateObject WebStateObject, int Interru
 				// Post-auth drop is a rare, meaningful state change (a healthy session closing) - always log it.
 				printf("Connection LOST: Disconnected after authentication (fd=%d) - server closed connection\n",
 					ILibWebClient_GetDescriptorValue_FromStateObject(WebStateObject));
-				// Only a session that stayed authenticated for a while proves the server healthy enough to reset backoff; a short-lived one just halves it.
+				// Only a session that stayed authenticated for a while proves the server healthy enough to reset backoff; a short-lived one halves it, never below the floor.
 				if (agent->authTick != 0 && (ILibGetUptime() - agent->authTick) >= MESH_BACKOFF_STABLE_SESSION_MS) { agent->retryTime = 0; }
-				else if (agent->retryTime > 2 * MESH_BACKOFF_MIN_RETRY_MS) { agent->retryTime /= 2; }
+				else { agent->retryTime = (agent->retryTime > 2 * MESH_BACKOFF_MIN_RETRY_MS) ? (agent->retryTime / 2) : MESH_BACKOFF_MIN_RETRY_MS; }
 				agent->authTick = 0;
 			}
 			if (agent->controlChannelDebug != 0)
@@ -5032,6 +5032,7 @@ void MeshServer_Connect(MeshAgentHostContainer *agent)
 		else
 		{
 			delay = agent->retryTime + (timeout % agent->retryTime);		// Random value between current value and double the current value
+			if (delay >= 480000) { delay = 480000 + (timeout % 120000); }	// Never let the last doubling overshoot the 8-10 minute cap
 		}
 		// Throttle the offline-retry-loop spam: only log the retry schedule on cycles the throttle decided to log.
 		if (agent->controlChannelLogThisAttempt != 0) { printf("AutoRetry Connect in %d milliseconds\n", delay); }
