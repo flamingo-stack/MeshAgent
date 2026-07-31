@@ -741,6 +741,7 @@ sign:
 
 clean:
 	rm -f meshconsole/*.o
+	rm -f openframe/*.o
 	rm -f microstack/*.o
 	rm -f microstack/nossl/*.o
 	rm -f microscript/*.o
