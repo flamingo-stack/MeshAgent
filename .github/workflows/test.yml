@@ -88,8 +88,8 @@ jobs:
           make macos ARCHID=${{ matrix.archid }}
         shell: bash
 
-  trivy_scan:
-    name: "Trivy Scan"
+  trivy_code:
+    name: "Trivy Code Scan"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -102,8 +102,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
-      - name: Trivy scan (fs + base images)
+      - name: Trivy scan (dependencies + Dockerfile base images)
         uses: ./.github/steps/trivy
+        with:
+          scan: code
 
   all-checks:
     name: "All Checks"
