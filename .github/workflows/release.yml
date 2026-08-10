@@ -223,20 +223,24 @@ jobs:
       - name: Prepare release artifacts
         run: |
           set -e
+          [ -f CoreModule.js ] || { echo "::error::CoreModule.js missing from checkout"; exit 1; }
           mkdir -p final-artifacts/clients
 
           # macOS - reconstruct .app bundle and archive
+          # CoreModule.js goes next to the .app (agent loads it from there); inside would break the codesign seal
           if [ -d "release-artifacts/meshagent-mac-universal/Contents" ]; then
             mkdir -p release-artifacts/meshagent-mac-universal-app
             mv release-artifacts/meshagent-mac-universal release-artifacts/meshagent-mac-universal-app/MeshAgent.app
+            cp CoreModule.js release-artifacts/meshagent-mac-universal-app/
             tar -czvf "final-artifacts/clients/meshagent-macos-universal.tar.gz" \
-              -C "release-artifacts/meshagent-mac-universal-app" MeshAgent.app
+              -C "release-artifacts/meshagent-mac-universal-app" MeshAgent.app CoreModule.js
           fi
 
           # Windows
           if [ -d "release-artifacts/meshagent-windows-amd64" ]; then
+            cp CoreModule.js release-artifacts/meshagent-windows-amd64/
             (cd "release-artifacts/meshagent-windows-amd64" && \
-              zip "${GITHUB_WORKSPACE}/final-artifacts/clients/meshagent-windows-amd64.zip" ${{ env.BINARY_NAME }}.exe)
+              zip "${GITHUB_WORKSPACE}/final-artifacts/clients/meshagent-windows-amd64.zip" "${BINARY_NAME}.exe" CoreModule.js)
           fi
 
           # Verify all expected artifacts exist
@@ -254,6 +258,7 @@ jobs:
           ## MeshAgent Clients
           - **macOS** (Universal App Bundle): \`meshagent-macos-universal.tar.gz\` - Extract and run MeshAgent.app
           - **Windows** (amd64): \`meshagent-windows-amd64.zip\`
+          - Both archives include \`CoreModule.js\` (OpenFrame agent core)
           EOF
 
       - name: Create Release
