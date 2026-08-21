@@ -88,8 +88,8 @@ jobs:
           make macos ARCHID=${{ matrix.archid }}
         shell: bash
 
-  scan_code:
-    name: "Scan Code"
+  scan:
+    name: "Scan"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -106,20 +106,6 @@ jobs:
         uses: ./.github/steps/trivy
         with:
           scan: code
-
-  report:
-    name: "Report"
-    runs-on: ubuntu-latest
-    needs: [scan_code]
-    if: always() && github.event_name == 'pull_request'
-    steps:
-      - name: Merge code scan report
-        continue-on-error: true
-        uses: actions/upload-artifact/merge@v4
-        with:
-          name: scan_code
-          pattern: trivy-*-code-report*
-          delete-merged: true
 
   all-checks:
     name: "All Checks"
