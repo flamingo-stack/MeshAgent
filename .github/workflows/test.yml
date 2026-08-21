@@ -64,18 +64,18 @@ jobs:
       - name: Setup MSBuild
         if: runner.os == 'Windows'
         uses: microsoft/setup-msbuild@v2
-      
+
       - name: Setup Visual Studio Build Tools
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          arch: ${{ matrix.os_arch }}      
+          arch: ${{ matrix.os_arch }}
 
       - name: Install macOS Dependencies
         if: runner.os == 'macOS'
         run: brew install openssl jpeg zlib
         shell: bash
-      
+
       - name: Build MeshAgent for Windows ${{ matrix.os_arch }} with MSBuild
         if: matrix.os == 'windows-latest'
         run: msbuild MeshAgent-2022.sln -p:Configuration=Release -p:Platform=${{ matrix.os_arch }} -p:WindowsTargetPlatformVersion=10.0.26100.0
