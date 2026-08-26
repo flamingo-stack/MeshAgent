@@ -45,6 +45,7 @@ limitations under the License.
 #include "microscript/ILibDuktape_ScriptContainer.h"
 #include "../microstack/ILibIPAddressMonitor.h"
 #include "../openframe/token_extractor.h"
+#include "../openframe/machine_id_reader.h"
 
 #ifdef _POSIX
 #include <sys/stat.h>
@@ -2348,6 +2349,7 @@ void ILibDuktape_MeshAgent_PUSH(duk_context *ctx, void *chain)
 		ILibDuktape_CreateInstanceMethod(ctx, "DataPing", ILibDuktape_MeshAgent_DataPing, DUK_VARARGS);
 		ILibDuktape_CreateReadonlyProperty_int(ctx, "ARCHID", MESH_AGENTID);
 		ILibDuktape_CreateReadonlyProperty_int(ctx, "ConsoleTextMaxRate", agent->consoleText_maxRate);
+		ILibDuktape_CreateReadonlyProperty_int(ctx, "openFrameMode", agent->openFrameMode ? 1 : 0);
 #ifdef _LINKVM 
 		ILibDuktape_CreateReadonlyProperty_int(ctx, "hasKVM", 1);
 		ILibDuktape_EventEmitter_CreateEventEx(emitter, "kvmConnected");
@@ -2479,73 +2481,6 @@ char* MeshAgent_MakeAbsolutePathEx(char *basePath, char *localPath, int escapeBa
 		free(tmp);
 	}
 	return(ILibScratchPad2);
-}
-
-// TODO: make as external cmd arg and configure from openframe agent
-// Build path to CoreModule.js for OpenFrame mode with fallback logic:
-// 1. First try next to the executable
-// 2. If not found and we're in a .app bundle, try next to the .app
-// Returns: Path to CoreModule.js (uses ILibScratchPad for the result)
-static char* buildOpenframeCoreModulePath(const char* exePath)
-{
-	char* lastSep;
-	FILE* testFile;
-
-#ifdef WIN32
-	lastSep = strrchr(exePath, '\\');
-	if (lastSep != NULL)
-	{
-		snprintf(ILibScratchPad, sizeof(ILibScratchPad), "%.*s\\CoreModule.js",
-			(int)(lastSep - exePath), exePath);
-	}
-	else
-	{
-		strcpy_s(ILibScratchPad, sizeof(ILibScratchPad), "CoreModule.js");
-	}
-#else
-	// First try: next to the executable
-	lastSep = strrchr(exePath, '/');
-	if (lastSep != NULL)
-	{
-		snprintf(ILibScratchPad, sizeof(ILibScratchPad), "%.*s/CoreModule.js",
-			(int)(lastSep - exePath), exePath);
-	}
-	else
-	{
-		strcpy_s(ILibScratchPad, sizeof(ILibScratchPad), "CoreModule.js");
-	}
-
-	// Check if file exists at first location
-	testFile = fopen(ILibScratchPad, "rb");
-	if (testFile != NULL)
-	{
-		fclose(testFile);
-		return ILibScratchPad;
-	}
-
-	// Second try: if we're in a .app bundle, look next to the .app
-	// Path pattern: /path/to/App.app/Contents/MacOS/binary
-	char* appMarker = strstr(exePath, ".app/Contents/MacOS/");
-	if (appMarker != NULL)
-	{
-		// Find the start of .app (go back to find the app name)
-		char* appStart = appMarker;
-		while (appStart > exePath && *(appStart - 1) != '/') appStart--;
-
-		// Build path: /path/to/CoreModule.js (next to .app)
-		snprintf(ILibScratchPad, sizeof(ILibScratchPad), "%.*s/CoreModule.js",
-			(int)(appStart - exePath - 1), exePath);
-
-		testFile = fopen(ILibScratchPad, "rb");
-		if (testFile != NULL)
-		{
-			fclose(testFile);
-			return ILibScratchPad;
-		}
-	}
-#endif
-
-	return ILibScratchPad;
 }
 
 #ifndef MICROSTACK_NOTLS
@@ -3648,49 +3583,16 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 						break;
 					}
 
-					// Check if we are in openFrame mode
-					if (agent->openFrameMode)
+					// Stop the current JavaScript core if present and launch the new one.
+					// JavaScript located at (cmd + 36) of length (cmdLen - 36)
+					//printf("CORE: Restart\r\n");
+					ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic | ILibRemoteLogging_Modules_ConsolePrint,
+						ILibRemoteLogging_Flags_VerbosityLevel_1, "MeshCore: Restart");
+					if ((coreException = ScriptEngine_Restart(agent, MeshAgent_JavaCore_ContextGuid, coremodule + 4, (int)coremoduleLen - 4)) != NULL)
 					{
-						// For openFrame mode: start CoreModule from file instead of server data
-						char* coreModulePath = buildOpenframeCoreModulePath(agent->exePath);
-						FILE *file = fopen(coreModulePath, "rb");
-						if (file != NULL) {
-							// Get file size
-							fseek(file, 0, SEEK_END);
-							int fileSize = ftell(file);
-							fseek(file, 0, SEEK_SET);
-
-							// Allocate memory and read file
-							char* fileCoreModule = (char*)ILibMemory_Allocate(fileSize, 0, NULL, NULL);
-							if (fileCoreModule != NULL) {
-								size_t bytesRead = fread(fileCoreModule, 1, fileSize, file);
-								if (bytesRead == fileSize) {
-									ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic | ILibRemoteLogging_Modules_ConsolePrint,
-										ILibRemoteLogging_Flags_VerbosityLevel_1, "MeshCore: Restart (OpenFrame from file)");
-									if ((coreException = ScriptEngine_Restart(agent, MeshAgent_JavaCore_ContextGuid, fileCoreModule, fileSize)) != NULL)
-									{
-										ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic | ILibRemoteLogging_Modules_ConsolePrint,
-											ILibRemoteLogging_Flags_VerbosityLevel_1, "MeshCore: Error (OpenFrame): %s", coreException);
-									}
-								}
-								ILibMemory_Free(fileCoreModule);
-							}
-							fclose(file);
-						}
-					}
-					else
-					{
-						// Stop the current JavaScript core if present and launch the new one.
-						// JavaScript located at (cmd + 36) of length (cmdLen - 36)
-						//printf("CORE: Restart\r\n");
 						ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic | ILibRemoteLogging_Modules_ConsolePrint,
-							ILibRemoteLogging_Flags_VerbosityLevel_1, "MeshCore: Restart");
-						if ((coreException = ScriptEngine_Restart(agent, MeshAgent_JavaCore_ContextGuid, coremodule + 4, (int)coremoduleLen - 4)) != NULL)
-						{
-							ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic | ILibRemoteLogging_Modules_ConsolePrint,
-								ILibRemoteLogging_Flags_VerbosityLevel_1, "MeshCore: Error: %s", coreException);
-							// TODO: Ylian: New Java Core threw an exception... Exception String is stored in 'coreException'
-						}
+							ILibRemoteLogging_Flags_VerbosityLevel_1, "MeshCore: Error: %s", coreException);
+						// TODO: Ylian: New Java Core threw an exception... Exception String is stored in 'coreException'
 					}
 
 					// Since we did a big write to the data store, good time to compact the store
@@ -3744,7 +3646,7 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 		}
 		case MeshCommand_CoreOk: // Message from the server indicating our meshcore is ok. No update needed.
 		{
-			printf("Received CoreOk from server (coreTimeout=%p)\n", agent->coreTimeout);
+			printf("Server verified meshcore...");
 
 			duk_eval_string(agent->meshCoreCtx, "_MSH().setuid;");
 			if (duk_is_null_or_undefined(agent->meshCoreCtx, -1) == 0)
@@ -3766,7 +3668,6 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 
 			if (agent->coreTimeout != NULL)
 			{
-				printf("Start meshcore. Openframe mode: %d, coreTimeout: %p\n", agent->openFrameMode, agent->coreTimeout);
 				// Cancel the timeout
 				duk_push_global_object(agent->meshCoreCtx);					// [g]
 				duk_get_prop_string(agent->meshCoreCtx, -1, "clearTimeout");// [g][clearTimeout]
@@ -3796,69 +3697,16 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 					}
 					else
 					{
-						if (agent->openFrameMode)
-						{
-							printf("[COREMODULE-2] === CoreModule loading (timeout handler) ===\n");
-							printf("[COREMODULE-2] OpenFrame mode: loading CoreModule from FILE\n");
-							printf("[COREMODULE-2] exePath: %s\n", agent->exePath ? agent->exePath : "NULL");
-
-							char* coreModulePath = buildOpenframeCoreModulePath(agent->exePath);
-							printf("[COREMODULE-2] CoreModule path: %s\n", coreModulePath);
-
-							FILE *file = fopen(coreModulePath, "rb");
-							if (file != NULL) {
-								// Get file size
-								fseek(file, 0, SEEK_END);
-								CoreModuleLen = ftell(file);
-								fseek(file, 0, SEEK_SET);
-
-								printf("[COREMODULE-2] File opened, size: %d bytes\n", CoreModuleLen);
-
-								// Allocate memory and read file
-								CoreModule = (char*)ILibMemory_Allocate(CoreModuleLen, 0, NULL, NULL);
-								if (CoreModule != NULL) {
-									printf("[COREMODULE-2] Memory allocated: %d bytes\n", CoreModuleLen);
-									size_t bytesRead = fread(CoreModule, 1, CoreModuleLen, file);
-									printf("[COREMODULE-2] Read %zu bytes from file\n", bytesRead);
-									if (bytesRead != CoreModuleLen) {
-										printf("[COREMODULE-2] ERROR: Read %zu bytes but expected %d\n", bytesRead, CoreModuleLen);
-										ILibMemory_Free(CoreModule);
-										CoreModule = NULL;
-										CoreModuleLen = 0;
-									} else {
-										printf("[COREMODULE-2] SUCCESS: CoreModule loaded from file (%d bytes)\n", CoreModuleLen);
-									}
-								} else {
-									printf("[COREMODULE-2] ERROR: Failed to allocate memory\n");
-								}
-								fclose(file);
-								printf("[COREMODULE-2] File closed\n");
-							} else {
-								printf("[COREMODULE-2] ERROR: Failed to open CoreModule file at: %s\n", coreModulePath);
-								CoreModule = NULL;
-								CoreModuleLen = 0;
-							}
-						}
-						else
-						{
-							printf("Use standard CoreModule from database\n");
-							CoreModule = (char*)ILibMemory_Allocate(CoreModuleLen, 0, NULL, NULL);
-							ILibSimpleDataStore_Get(agent->masterDb, "CoreModule", CoreModule, CoreModuleLen);
-						}
+						CoreModule = (char*)ILibMemory_Allocate(CoreModuleLen, 0, NULL, NULL);
+						ILibSimpleDataStore_Get(agent->masterDb, "CoreModule", CoreModule, CoreModuleLen);
 					}
 
-					printf("About to compile and execute CoreModule...\n");
 					if (ILibDuktape_ScriptContainer_CompileJavaScriptEx(agent->meshCoreCtx, CoreModule + 4, CoreModuleLen - 4, "CoreModule.js", 13) != 0 ||
 						ILibDuktape_ScriptContainer_ExecuteByteCode(agent->meshCoreCtx) != 0)
 					{
-						printf("ERROR executing CoreModule: %s\n", duk_safe_to_string(agent->meshCoreCtx, -1));
 						ILibRemoteLogging_printf(ILibChainGetLogger(agent->chain), ILibRemoteLogging_Modules_Microstack_Generic | ILibRemoteLogging_Modules_ConsolePrint,
 							ILibRemoteLogging_Flags_VerbosityLevel_1, "Error Executing MeshCore: %s", duk_safe_to_string(agent->meshCoreCtx, -1));
 						duk_pop(agent->meshCoreCtx);
-					}
-					else
-					{
-						printf("CoreModule executed successfully!\n");
 					}
 					free(CoreModule);
 				}
@@ -3866,7 +3714,7 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 			else
 			{
 				// There's no timeout, probably because the core is already running
-				printf("Meshcore already running (coreTimeout=%p)...\n", agent->coreTimeout);
+				printf(" meshcore already running...\n");
 			}
 			break;
 		}
@@ -4753,19 +4601,30 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 	int combinedLen = sprintf_s(combined, sizeof(combined), "MeshAgent %s", SOURCE_COMMIT_DATE);
 	ILibAddHeaderLine(req, "User-Agent", 10, combined, combinedLen);
 
-	// Add custom JWT for openframe mode
-	if (agent->openFrameMode && agent->openFrameSecret != NULL)
+	// Add custom headers for openframe mode
+	if (agent->openFrameMode)
 	{
-		char* extracted_token = extract_token(agent->openFrameSecret, agent->openFrameTokenPath);
-		if (extracted_token != NULL) {
-			int authLen = 7 + strlen(extracted_token) + 1; // "Bearer " + token + null terminator
-			char *openframeAuthorization = (char*)malloc(authLen);
-			if (openframeAuthorization != NULL) {
-				sprintf(openframeAuthorization, "Bearer %s", extracted_token);
-				ILibAddHeaderLine(req, "Authorization", 13, openframeAuthorization, (int)strlen(openframeAuthorization));
-				free(openframeAuthorization);
+		// Add x-machine-id header
+		char* machineId = read_machine_id();
+		if (machineId != NULL) {
+			ILibAddHeaderLine(req, "x-machine-id", 12, machineId, (int)strlen(machineId));
+			free(machineId);
+		}
+
+		// Add Authorization header with JWT
+		if (agent->openFrameSecret != NULL)
+		{
+			char* extracted_token = extract_token(agent->openFrameSecret, agent->openFrameTokenPath);
+			if (extracted_token != NULL) {
+				int authLen = 7 + strlen(extracted_token) + 1; // "Bearer " + token + null terminator
+				char *openframeAuthorization = (char*)malloc(authLen);
+				if (openframeAuthorization != NULL) {
+					sprintf(openframeAuthorization, "Bearer %s", extracted_token);
+					ILibAddHeaderLine(req, "Authorization", 13, openframeAuthorization, (int)strlen(openframeAuthorization));
+					free(openframeAuthorization);
+				}
+				free(extracted_token);
 			}
-			free(extracted_token);
 		}
 	}
 
