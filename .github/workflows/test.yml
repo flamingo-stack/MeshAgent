@@ -94,7 +94,7 @@ jobs:
     permissions:
       contents: read
       packages: read
-    if: github.event_name == 'pull_request' && github.event.pull_request.state == 'open' && !github.event.pull_request.draft
+    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
