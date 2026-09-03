@@ -89,7 +89,7 @@ jobs:
         shell: bash
 
   scan:
-    name: "Scan"
+    name: "Scan Code"
     runs-on: ubuntu-latest
     permissions:
       contents: read
